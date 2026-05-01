@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main, master]
 
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+  EKS_CLUSTER: zomato-cluster
+
 jobs:
   frontend:
     name: Frontend Build & Lint
@@ -63,7 +68,7 @@ jobs:
         run: npm run install:all
 
   docker:
-    name: Docker Build
+    name: Docker Build & Push to ECR
     runs-on: ubuntu-latest
     needs: [frontend, backend]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
@@ -74,9 +79,122 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build frontend image
-        run: docker build -t zomato-frontend:latest ./frontend
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Build backend services
-        run: docker-compose -f docker-compose.yml build
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Build and push frontend image
+        env:
+          IMAGE_TAG: latest
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/frontend:$IMAGE_TAG ./frontend
+          docker push ${{ env.ECR_REGISTRY }}/frontend:$IMAGE_TAG
+
+      - name: Build and push gateway image
+        env:
+          IMAGE_TAG: latest
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/gateway:$IMAGE_TAG ./backend/gateway
+          docker push ${{ env.ECR_REGISTRY }}/gateway:$IMAGE_TAG
+
+      - name: Build and push user-service image
+        env:
+          IMAGE_TAG: latest
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/user-service:$IMAGE_TAG ./backend/services/user-service
+          docker push ${{ env.ECR_REGISTRY }}/user-service:$IMAGE_TAG
+
+      - name: Build and push restaurant-service image
+        env:
+          IMAGE_TAG: latest
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/restaurant-service:$IMAGE_TAG ./backend/services/restaurant-service
+          docker push ${{ env.ECR_REGISTRY }}/restaurant-service:$IMAGE_TAG
+
+      - name: Build and push order-service image
+        env:
+          IMAGE_TAG: latest
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/order-service:$IMAGE_TAG ./backend/services/order-service
+          docker push ${{ env.ECR_REGISTRY }}/order-service:$IMAGE_TAG
+
+      - name: Build and push payment-service image
+        env:
+          IMAGE_TAG: latest
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/payment-service:$IMAGE_TAG ./backend/services/payment-service
+          docker push ${{ env.ECR_REGISTRY }}/payment-service:$IMAGE_TAG
+
+      - name: Build and push delivery-service image
+        env:
+          IMAGE_TAG: latest
+        run: |
+          docker build -t ${{ env.ECR_REGISTRY }}/delivery-service:$IMAGE_TAG ./backend/services/delivery-service
+          docker push ${{ env.ECR_REGISTRY }}/delivery-service:$IMAGE_TAG
+
+      - name: Update Kubernetes deployments with new image tags
+        env:
+          IMAGE_TAG: latest
+        run: |
+          sed -i 's|image: ganesh1702/frontend:*|image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/frontend:${{ env.IMAGE_TAG }}|g' k8s/deployment/frontend.yaml
+          sed -i 's|image: ganesh1702/gateway:*|image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/gateway:${{ env.IMAGE_TAG }}|g' k8s/deployment/gateway.yaml
+          sed -i 's|image: ganesh1702/user-service:*|image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/user-service:${{ env.IMAGE_TAG }}|g' k8s/deployment/user-service.yaml
+          sed -i 's|image: ganesh1702/restaurant-service:*|image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/restaurant-service:${{ env.IMAGE_TAG }}|g' k8s/deployment/restaurant-service.yaml
+          sed -i 's|image: ganesh1702/order-service:*|image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/order-service:${{ env.IMAGE_TAG }}|g' k8s/deployment/order-service.yaml
+          sed -i 's|image: ganesh1702/payment-service:*|image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/payment-service:${{ env.IMAGE_TAG }}|g' k8s/deployment/payment-service.yaml
+          sed -i 's|image: ganesh1702/delivery-service:*|image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/delivery-service:${{ env.IMAGE_TAG }}|g' k8s/deployment/delivery-service.yaml
+
+      - name: Commit and push updated deployment files
+        run: |
+          git config --local user.email "github-actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add k8s/deployment/*.yaml
+          git commit -m "Update deployment images to ECR" || echo "No changes to commit"
+          git push
+
+  deploy-eks:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER }} --region ${{ env.AWS_REGION }}
+
+      - name: Deploy to EKS
+        run: |
+          kubectl apply -f k8s/namespace/
+          kubectl apply -f k8s/configmap/
+          kubectl apply -f k8s/deployment/
+          kubectl apply -f k8s/ingress/zomato-ingress-aws-alb.yaml
+
+      - name: Verify deployment
+        run: |
+          kubectl rollout status deployment/frontend --timeout=300s
+          kubectl rollout status deployment/gateway --timeout=300s
+          kubectl rollout status deployment/user-service --timeout=300s
+          kubectl rollout status deployment/restaurant-service --timeout=300s
+          kubectl rollout status deployment/order-service --timeout=300s
+          kubectl rollout status deployment/payment-service --timeout=300s
+          kubectl rollout status deployment/delivery-service --timeout=300s
+          kubectl get pods -o wide
+          kubectl get svc
+          kubectl get ingress

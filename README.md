@@ -365,6 +365,76 @@ The app uses a comprehensive CSS custom property design system in `index.css`:
 
 ---
 
+## Kubernetes Deployment
+
+All Kubernetes manifests are located in the `k8s/` directory.
+
+### Prerequisites
+
+- Kubernetes cluster (minikube, kind, Docker Desktop, or cloud)
+- kubectl configured
+- Ingress controller installed (NGINX Ingress Controller recommended)
+
+### Quick Start
+
+1. **Build images** (or use your CI/CD pipeline):
+
+```bash
+docker build -t zomato/user-service:latest ./backend/services/user-service
+docker build -t zomato/restaurant-service:latest ./backend/services/restaurant-service
+docker build -t zomato/order-service:latest ./backend/services/order-service
+docker build -t zomato/delivery-service:latest ./backend/services/delivery-service
+docker build -t zomato/payment-service:latest ./backend/services/payment-service
+docker build -t zomato/frontend:latest ./frontend
+```
+
+2. **Load images into cluster** (for local clusters):
+
+```bash
+# minikube
+minikube image load zomato/user-service:latest
+# ... repeat for all images
+
+# kind
+kind load docker-image zomato/user-service:latest
+# ... repeat for all images
+```
+
+3. **Deploy**:
+
+```bash
+kubectl apply -f k8s/
+```
+
+4. **Verify**:
+
+```bash
+kubectl get all -n zomato-app
+```
+
+5. **Access**:
+
+Get the ingress IP and add host entries:
+
+```bash
+kubectl get ingress -n zomato-app
+```
+
+Add to your hosts file:
+```
+<INGRESS_IP>  zomato.local
+<INGRESS_IP>  grafana.zomato.local
+<INGRESS_IP>  prometheus.zomato.local
+```
+
+- Application: http://zomato.local
+- Grafana: http://grafana.zomato.local (admin / admin)
+- Prometheus: http://prometheus.zomato.local
+
+For detailed instructions, see [k8s/README.md](k8s/README.md).
+
+---
+
 ## License
 
 MIT — Open source for educational and commercial use.
