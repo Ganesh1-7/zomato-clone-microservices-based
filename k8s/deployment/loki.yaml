@@ -79,4 +79,3 @@ spec:
     targetPort: 3100
     protocol: TCP
   type: ClusterIP
-
