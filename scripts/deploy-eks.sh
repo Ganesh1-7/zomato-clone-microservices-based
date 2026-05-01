@@ -146,10 +146,7 @@ kubectl apply -f k8s/deployment/
 # Apply Ingress (using AWS ALB)
 kubectl apply -f k8s/ingress/zomato-ingress-aws-alb.yaml
 
-# Apply HPA
-kubectl apply -f k8s/autoscaling/
-
-# Apply PDB
+# Apply PDB (and HPA - co-located in deployment files)
 kubectl apply -f k8s/deployment/pod-disruption-budget.yaml
 
 # ============ VERIFY DEPLOYMENT ============
