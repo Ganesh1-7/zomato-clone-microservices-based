@@ -1,5 +1,5 @@
-# NGINX Ingress Controller for EKS
-# Apply this manifest to install NGINX Ingress Controller on EKS
+# NGINX Ingress Controller for Minikube
+# Simplified for local development
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -16,17 +16,6 @@ metadata:
   labels:
     app.kubernetes.io/name: ingress-nginx
     app.kubernetes.io/instance: ingress-nginx
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ingress-nginx-controller
-  namespace: ingress-nginx
-  labels:
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: ingress-nginx
-data:
-  allow-snippet-annotations: "true"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -57,12 +46,6 @@ rules:
   - apiGroups: ["networking.k8s.io"]
     resources: ["ingressclasses"]
     verbs: ["get", "list", "watch"]
-  - apiGroups: ["coordination.k8s.io"]
-    resources: ["leases"]
-    verbs: ["get", "list", "watch", "create", "update"]
-  - apiGroups: ["discovery.k8s.io"]
-    resources: ["endpointslices"]
-    verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -74,60 +57,6 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: ingress-nginx
-subjects:
-  - kind: ServiceAccount
-    name: ingress-nginx
-    namespace: ingress-nginx
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: ingress-nginx
-  namespace: ingress-nginx
-  labels:
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: ingress-nginx
-rules:
-  - apiGroups: [""]
-    resources: ["namespaces"]
-    verbs: ["get"]
-  - apiGroups: [""]
-    resources: ["configmaps", "pods", "secrets", "endpoints"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: [""]
-    resources: ["services"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["networking.k8s.io"]
-    resources: ["ingresses"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["networking.k8s.io"]
-    resources: ["ingresses/status"]
-    verbs: ["update"]
-  - apiGroups: ["networking.k8s.io"]
-    resources: ["ingressclasses"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["coordination.k8s.io"]
-    resources: ["leases"]
-    verbs: ["get", "list", "watch", "create", "update"]
-  - apiGroups: [""]
-    resources: ["configmaps"]
-    verbs: ["get", "watch", "create", "update"]
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["create", "patch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: ingress-nginx
-  namespace: ingress-nginx
-  labels:
-    app.kubernetes.io/name: ingress-nginx
-    app.kubernetes.io/instance: ingress-nginx
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
   name: ingress-nginx
 subjects:
   - kind: ServiceAccount
@@ -153,7 +82,7 @@ metadata:
     app.kubernetes.io/name: ingress-nginx
     app.kubernetes.io/instance: ingress-nginx
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: ingress-nginx
@@ -176,8 +105,8 @@ spec:
             - --election-id=ingress-nginx-leader
             - --controller-class=k8s.io/ingress-nginx
             - --ingress-class=nginx
-            - --configmap=$(POD_NAMESPACE)/ingress-nginx-controller
             - --watch-ingress-without-class=true
+            - --enable-admission-webhooks
           securityContext:
             capabilities:
               drop:
@@ -199,9 +128,11 @@ spec:
             - name: http
               containerPort: 80
               protocol: TCP
+              hostPort: 80
             - name: https
               containerPort: 443
               protocol: TCP
+              hostPort: 443
           livenessProbe:
             httpGet:
               path: /healthz
@@ -222,8 +153,11 @@ spec:
             failureThreshold: 3
           resources:
             requests:
+              cpu: 50m
+              memory: 256Mi
+            limits:
               cpu: 100m
-              memory: 90Mi
+              memory: 512Mi
 ---
 apiVersion: v1
 kind: Service
@@ -235,16 +169,17 @@ metadata:
     app.kubernetes.io/instance: ingress-nginx
 spec:
   type: LoadBalancer
-  externalTrafficPolicy: Local
   ports:
     - name: http
       port: 80
-      targetPort: http
+      targetPort: 80
       protocol: TCP
+    
     - name: https
       port: 443
-      targetPort: https
+      targetPort: 443
       protocol: TCP
+    
   selector:
     app.kubernetes.io/name: ingress-nginx
     app.kubernetes.io/instance: ingress-nginx

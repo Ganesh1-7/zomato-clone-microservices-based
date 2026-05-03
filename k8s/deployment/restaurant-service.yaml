@@ -2,14 +2,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: restaurant-service
-  namespace: zomato
   labels:
     app: restaurant-service
     app.kubernetes.io/name: restaurant-service
     app.kubernetes.io/component: backend
     app.kubernetes.io/part-of: zomato-clone
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: restaurant-service
@@ -23,7 +22,7 @@ spec:
       containers:
       - name: restaurant-service
         image: ganesh1702/restaurant-service:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3002
         env:
@@ -47,17 +46,16 @@ spec:
           failureThreshold: 3
         resources:
           limits:
-            memory: "256Mi"
-            cpu: "500m"
-          requests:
             memory: "128Mi"
             cpu: "250m"
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: restaurant-service
-  namespace: zomato
   labels:
     app: restaurant-service
     app.kubernetes.io/name: restaurant-service
@@ -70,40 +68,3 @@ spec:
     targetPort: 3002
     protocol: TCP
   type: ClusterIP
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: restaurant-service-hpa
-  namespace: zomato
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: restaurant-service
-  minReplicas: 2
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
-  - type: Resource
-    resource:
-      name: memory
-      target:
-        type: Utilization
-        averageUtilization: 80
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: restaurant-service-pdb
-  namespace: zomato
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app: restaurant-service
