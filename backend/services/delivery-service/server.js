@@ -8,6 +8,7 @@ const express = require('express');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const client = require('prom-client');
+const { createRequestIdMiddleware } = require('../../logging/logger');
 
 const app = express();
 const PORT = process.env.DELIVERY_SERVICE_PORT || 3000;
@@ -58,6 +59,8 @@ app.use((req, res, next) => {
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(createRequestIdMiddleware());
+
 
 // In-memory data stores
 const deliveries = new Map();
@@ -310,10 +313,19 @@ app.post('/api/deliveries/estimate', (req, res) => {
   });
 });
 
-// ============ START SERVER ============
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Service running on port ${PORT}`);
+// Error handler (must be after routes)
+app.use((err, req, res, next) => {
+  res.status(err.status || 500).json({
+    error: 'Internal Server Error',
+  });
 });
 
+
+// ============ START SERVER ============
+app.listen(PORT, "0.0.0.0", () => {});
+
 module.exports = app;
+
+
+
 

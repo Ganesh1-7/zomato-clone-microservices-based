@@ -1,0 +1,192 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-nginx-config
+  namespace: zomato
+data:
+  nginx.conf: |-
+    events {
+    worker_connections 1024;
+    }
+
+    http {
+        # ✅ FIX: Kubernetes DNS resolver (prevents crash)
+        resolver kube-dns.kube-system.svc.cluster.local valid=10s;
+    
+        types {
+            text/html                             html htm shtml;
+            text/css                              css;
+            text/xml                              xml;
+            image/gif                             gif;
+            image/jpeg                            jpeg jpg;
+            application/javascript                js;
+            application/json                      json;
+            image/png                             png;
+            image/svg+xml                         svg svgz;
+            application/wasm                      wasm;
+            application/zip                       zip;
+            font/woff                             woff;
+            font/woff2                            woff2;
+            font/ttf                              ttf;
+            font/otf                              otf;
+            application/pdf                       pdf;
+            image/webp                            webp;
+        }
+    
+        default_type application/octet-stream;
+    
+        log_format loki_json escape=json '{ '
+            '"timestamp": "$time_iso8601", '
+            '"source": "nginx", '
+            '"service": "api-gateway", '
+            '"level": "info", '
+            '"remote_addr": "$remote_addr", '
+            '"method": "$request_method", '
+            '"uri": "$request_uri", '
+            '"status": $status, '
+            '"response_time": $request_time, '
+            '"upstream": "$upstream_addr", '
+            '"upstream_response_time": "$upstream_response_time" '
+        '}';
+    
+        access_log /var/log/nginx/access.log loki_json;
+        error_log /var/log/nginx/error.log warn;
+    
+        sendfile on;
+        keepalive_timeout 65;
+    
+        gzip on;
+    
+        # ✅ FIX: upstreams with resolve + basic fail handling
+        upstream user_service {
+            zone user_service 64k;
+            server user-service:3000 resolve;
+        }
+    
+        upstream restaurant_service {
+            zone restaurant_service 64k;
+            server restaurant-service:3000 resolve;
+        }
+    
+        upstream order_service {
+            zone order_service 64k;
+            server order-service:3000 resolve;
+        }
+    
+        upstream delivery_service {
+            zone delivery_service 64k;
+            server delivery-service:3000 resolve;
+        }
+    
+        upstream payment_service {
+            zone payment_service 64k;
+            server payment-service:3000 resolve;
+        }
+    
+        server {
+            listen 80;
+            server_name localhost;
+    
+            # ✅ Global proxy settings (timeouts + retries)
+            proxy_connect_timeout 5s;
+            proxy_send_timeout 10s;
+            proxy_read_timeout 10s;
+    
+            proxy_next_upstream error timeout http_500 http_502 http_503 http_504;
+            proxy_next_upstream_tries 3;
+    
+            add_header 'Access-Control-Allow-Origin' '*' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-User-Id' always;
+    
+            location / {
+                if ($request_method = 'OPTIONS') {
+                    return 204;
+                }
+            }
+    
+            location /api/users/ {
+                proxy_pass http://user_service/;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+            }
+    
+            location /api/restaurants/ {
+                proxy_pass http://restaurant_service/api/restaurants/;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+            }
+    
+            location /api/cuisines {
+                proxy_pass http://restaurant_service/api/cuisines;
+            }
+    
+            location /api/categories {
+                proxy_pass http://restaurant_service/api/categories;
+            }
+    
+            location /api/cart/ {
+                proxy_pass http://order_service/api/cart/;
+            }
+    
+            location /api/orders/ {
+                proxy_pass http://order_service/api/orders/;
+            }
+    
+            location /api/orders {
+                proxy_pass http://order_service/api/orders;
+            }
+    
+            location /api/deliveries/ {
+                proxy_pass http://delivery_service/api/deliveries/;
+            }
+    
+            location /api/tracking/ {
+                proxy_pass http://delivery_service/api/tracking/;
+            }
+    
+            location /api/payments/ {
+                proxy_pass http://payment_service/api/payments/;
+            }
+    
+            location /api/payments {
+                proxy_pass http://payment_service/api/payments;
+            }
+    
+            location /health {
+                access_log off;
+                return 200 '{"status":"UP","service":"api-gateway"}';
+                add_header Content-Type application/json;
+            }
+        }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-nginx-config
+  namespace: zomato
+data:
+  default.conf: |-
+    server {
+        listen 80;
+        server_name localhost;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Frontend SPA routing
+        location / {
+            try_files $uri $uri/ /index.html;
+        }
+
+        location /api/ {
+            proxy_pass http://gateway.zomato.svc.cluster.local;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+        }
+
+        gzip on;
+        gzip_vary on;
+        gzip_min_length 1024;
+        gzip_types text/plain text/css text/xml text/javascript application/javascript application/xml+rss application/json;
+    }

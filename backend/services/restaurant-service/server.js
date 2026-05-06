@@ -7,6 +7,9 @@
 const express = require('express');
 const cors = require('cors');
 const client = require('prom-client');
+const {
+  createRequestIdMiddleware,
+} = require('../../logging/logger');
 
 const app = express();
 const PORT = process.env.RESTAURANT_SERVICE_PORT || 3000;
@@ -51,6 +54,8 @@ app.use((req, res, next) => {
 // Middleware
 app.use(cors());
 app.use(express.json());
+app.use(createRequestIdMiddleware());
+
 
 // ============ DATA STORE ============
 
@@ -300,11 +305,17 @@ app.get('/api/categories', (req, res) => {
   res.json(uniqueCategories);
 });
 
+// Error handler (must be after routes)
+app.use((err, req, res, next) => {
+  res.status(err.status || 500).json({
+    error: 'Internal Server Error',
+  });
+});
+
 // ============ START SERVER ============
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Service running on port ${PORT}`);
-});
+app.listen(PORT, "0.0.0.0", () => {});
+
 
 module.exports = app;
 
