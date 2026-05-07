@@ -1,28 +1,36 @@
 name: CICD
 
-on: 
-    push:
-        branches:
-            - main
+on:
+  push:
+    branches:
+      - main
+
 jobs:
-    build:
-        runs-on: ubuntu-latest           
-        
-        steps:
-        - uses: actions/checkout@v2
-        - name: build restaurant service
-          run: docker build -t restaurant-service:latest -f backend/services/restaurant-service/Dockerfile backend/services/restaurant-service
+  build-and-push:
+    runs-on: ubuntu-latest
 
-        - name: build order service
-          run: docker build -t order-service:latest -f backend/services/order-service/Dockerfile backend/services/order-service
+    strategy:
+      matrix:
+        service:
+          - restaurant-service
+          - order-service
+          - payment-service
+          - delivery-service
+          - user-service
 
-        - name: build payment service
-          run: docker build -t payment-service:latest -f backend/services/payment-service/Dockerfile backend/services/payment-service
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v2
 
-        - name: build delivery service
-          run: docker build -t delivery-service:latest -f backend/services/delivery-service/Dockerfile backend/services/delivery-service
+      - name: Login to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-        - name: build user service
-          run: docker build -t user-service:latest -f backend/services/user-service/Dockerfile backend/services/user-service
+      - name: Build Docker Image
+        run: |
+          docker build \
+          -t ganesh1702/${{ matrix.service }}:latest \
+          -f backend/services/${{ matrix.service }}/Dockerfile \
+          backend/services/${{ matrix.service }}
 
-    
+      - name: Push Docker Image
+        run: docker push ganesh1702/${{ matrix.service }}:latest
