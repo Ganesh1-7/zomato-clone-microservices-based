@@ -5,24 +5,30 @@ metadata:
   namespace: zomato
   labels:
     app: user-service
+
 spec:
   replicas: 1
+
   selector:
     matchLabels:
       app: user-service
+
   template:
     metadata:
       labels:
         app: user-service
+
     spec:
       containers:
         - name: user-service
           image: ganesh1702/user-service:latest
           imagePullPolicy: Always
+
           ports:
             - containerPort: 3000
               name: http
               protocol: TCP
+
           env:
             - name: USER_SERVICE_PORT
               value: "3000"
@@ -32,41 +38,58 @@ spec:
               value: "user-service"
             - name: LOG_LEVEL
               value: "info"
+
           resources:
             requests:
-              cpu: 50m
-              memory: 64Mi
+              cpu: "100m"
+              memory: "128Mi"
             limits:
-              cpu: 250m
-              memory: 256Mi
+              cpu: "500m"
+              memory: "512Mi"
+
+          # 🔥 CRITICAL: startupProbe (you are missing this)
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 10
+            failureThreshold: 30
+
           livenessProbe:
             httpGet:
               path: /health
               port: 3000
-            initialDelaySeconds: 30
-            periodSeconds: 10
+            initialDelaySeconds: 40
+            periodSeconds: 15
             timeoutSeconds: 5
             failureThreshold: 3
+
           readinessProbe:
             httpGet:
               path: /health
               port: 3000
             initialDelaySeconds: 20
-            periodSeconds: 5
+            periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 3
+            failureThreshold: 5
+
+          # 🔥 IMPORTANT for debugging crashes
+          terminationMessagePolicy: FallbackToLogsOnError
+
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: user-service
   namespace: zomato
+
 spec:
   selector:
     app: user-service
+
   ports:
     - port: 3000
       targetPort: 3000
       protocol: TCP
-  type: ClusterIP
 
+  type: ClusterIP
