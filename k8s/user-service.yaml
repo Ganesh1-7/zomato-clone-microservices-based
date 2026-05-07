@@ -16,8 +16,10 @@ spec:
         app: user-service
     spec:
       containers:
-      - name: user-service
-        image: ganesh1702/user-service:latest
+        - name: user-service
+          image: ganesh1702/user-service:latest
+          imagePullPolicy: Always
+
         ports:
         - containerPort: 3000
         env:

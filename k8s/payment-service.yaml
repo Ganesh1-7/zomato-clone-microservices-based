@@ -18,6 +18,8 @@ spec:
       containers:
       - name: payment-service
         image: ganesh1702/payment-service:latest
+        imagePullPolicy: Always
+
         ports:
         - containerPort: 3000
         env:

@@ -18,6 +18,8 @@ spec:
       containers:
       - name: order-service
         image: ganesh1702/order-service:latest
+        imagePullPolicy: Always
+
         ports:
         - containerPort: 3000
         env:
