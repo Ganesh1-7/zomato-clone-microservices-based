@@ -11,4 +11,4 @@ jobs:
         steps:
         - uses: actions/checkout@v2
         - name: build delivery service
-          run: docker build -t delivery-service:latest -f ../backend/delivery-service/Dockerfile ../backend/delivery-service
+          run: docker build -t delivery-service:latest -f backend/services/delivery-service/Dockerfile backend/services/delivery-service
