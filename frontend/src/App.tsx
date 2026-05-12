@@ -7,8 +7,11 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import { Toast } from './components/Toast';
 import { useToast } from './hooks/useToast';
 import { Cart, CartItem as CartItemType } from './components/Cart';
-import { MenuItem, restaurants } from './data/mockData';
+import { type MenuItem } from './types/restaurant';
+
+
 import './App.css';
+
 
 const RestaurantList = lazy(() => import('./components/RestaurantList').then(m => ({ default: m.RestaurantList })));
 const RestaurantDetails = lazy(() => import('./components/RestaurantDetails').then(m => ({ default: m.RestaurantDetails })));
@@ -42,9 +45,14 @@ function App() {
   const [sortBy, setSortBy] = useState('rating');
   const { toasts, addToast, removeToast } = useToast();
 
-  const cuisines = useMemo(() => {
-    return Array.from(new Set(restaurants.flatMap((r) => r.cuisine.split(', '))));
+  const [cuisines, setCuisines] = useState<string[]>([]);
+
+  useEffect(() => {
+    // Cuisines should come from restaurant-service in real deployments.
+    // For now, keep it empty until API-driven values are wired in.
+    setCuisines([]);
   }, []);
+
 
   useEffect(() => {
     try {
@@ -56,11 +64,13 @@ function App() {
 
   const handleAddToCart = useCallback(
     (item: MenuItem, quantity: number, restaurantId: number) => {
-      const restaurant = restaurants.find((r) => r.id === restaurantId);
-      if (!restaurant) return;
+      // restaurantName must be provided by the caller to avoid mockData usage.
+      const restaurantName = '';
+
 
       setCartItems((prev) => {
         const existingItem = prev.find((cartItem) => cartItem.id === item.id);
+
         if (existingItem) {
           return prev.map((cartItem) =>
             cartItem.id === item.id
@@ -76,7 +86,8 @@ function App() {
             price: item.price,
             quantity,
             restaurantId,
-            restaurantName: restaurant.name,
+            restaurantName,
+
             image: item.image,
           },
         ];

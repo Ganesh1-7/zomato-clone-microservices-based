@@ -45,7 +45,6 @@ spec:
               cpu: "250m"
               memory: "256Mi"
 
-          # 🔥 CRITICAL FIX: startupProbe (missing in your version)
           startupProbe:
             httpGet:
               path: /health

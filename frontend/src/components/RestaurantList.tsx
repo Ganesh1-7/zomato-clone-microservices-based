@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { type Restaurant } from "../data/mockData";
+import { type Restaurant } from "../types/restaurant";
+
 import { RestaurantCard } from "./RestaurantCard";
 import { fetchRestaurants } from "../services/api";
 import { useToast } from "../hooks/useToast";
@@ -21,30 +22,42 @@ export function RestaurantList({
   const [loading, setLoading] = useState(true);
   const [dataSource, setDataSource] = useState<"api" | "local">("local");
   const { addToast } = useToast();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setErrorMessage(null);
 
     fetchRestaurants({
       search: searchQuery || undefined,
       cuisine: selectedCuisine || undefined,
       minRating: selectedRating || undefined,
       sortBy: sortBy || undefined,
-    }).then((result) => {
-      if (cancelled) return;
-      setRestaurants(result.data);
-      setDataSource(result.source);
-      if (result.source === "local" && result.reason) {
-        addToast(result.reason, "info");
-      }
-      setLoading(false);
-    });
+    })
+      .then((result) => {
+        if (cancelled) return;
+        setRestaurants(result.data);
+        setDataSource(result.source);
+        if (result.source === "local" && result.reason) {
+          addToast(result.reason, "info");
+        }
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : "Restaurant service unavailable";
+        setErrorMessage(message ?? "Restaurant service unavailable");
+        setLoading(false);
+      });
+
 
     return () => {
       cancelled = true;
     };
   }, [searchQuery, selectedCuisine, selectedRating, sortBy, addToast]);
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -71,19 +84,37 @@ export function RestaurantList({
           </div>
         )}
 
+        {/* Error State */}
+        {!loading && errorMessage ? (
+          <div className="empty-state">
+            <p className="empty-state-title">Unable to reach restaurant service</p>
+            <p className="empty-state-message">{errorMessage}</p>
+            <button
+              className="btn-primary mt-4"
+              onClick={() => {
+                setErrorMessage(null);
+                setLoading(true);
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        ) : null}
+
         {/* Restaurants Grid */}
-        {!loading && restaurants.length > 0 ? (
+        {!loading && !errorMessage && restaurants.length > 0 ? (
           <div className="restaurant-grid">
             {restaurants.map((restaurant) => (
               <RestaurantCard key={restaurant.id} restaurant={restaurant} />
             ))}
           </div>
-        ) : !loading && (
+        ) : !loading && !errorMessage ? (
           <div className="empty-state">
             <p className="empty-state-title">No restaurants found</p>
             <p className="empty-state-message">Try adjusting your filters</p>
           </div>
-        )}
+        ) : null}
+
       </div>
     </div>
   );

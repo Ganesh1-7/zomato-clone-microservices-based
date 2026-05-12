@@ -1,7 +1,8 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { type Restaurant, type MenuItem } from "../data/mockData";
+import { type Restaurant, type MenuItem } from "../types/restaurant";
 import { fetchRestaurantById } from "../services/api";
+
 import { useToast } from "../hooks/useToast";
 import { FaStar, FaClock, FaArrowLeft, FaShoppingCart } from "react-icons/fa";
 
@@ -20,24 +21,37 @@ export function RestaurantDetails({ onAddToCart }: RestaurantDetailsProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [quantities, setQuantities] = useState<Record<number, number>>({});
 
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   useEffect(() => {
+
     let cancelled = false;
     setLoading(true);
+    setErrorMessage(null);
 
-    fetchRestaurantById(numericId).then((result) => {
-      if (cancelled) return;
-      setRestaurant(result.data);
-      setDataSource(result.source);
-      if (result.source === "local" && result.reason) {
-        addToast(result.reason, "info");
-      }
-      setLoading(false);
-    });
+    fetchRestaurantById(numericId)
+      .then((result) => {
+        if (cancelled) return;
+        setRestaurant(result.data);
+        setDataSource(result.source);
+        if (result.source === "local" && result.reason) {
+          addToast(result.reason, "info");
+        }
+        setLoading(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : "Restaurant service unavailable";
+        setErrorMessage(message ?? "Restaurant service unavailable");
+        setLoading(false);
+      });
+
 
     return () => {
       cancelled = true;
     };
   }, [numericId, addToast]);
+
 
   if (loading) {
     return (
@@ -48,6 +62,23 @@ export function RestaurantDetails({ onAddToCart }: RestaurantDetailsProps) {
       </div>
     );
   }
+
+  if (errorMessage) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-md text-center">
+          <p className="text-red-600 font-semibold">{errorMessage}</p>
+          <button
+            onClick={() => navigate("/")}
+            className="btn-primary mt-4"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
 
   if (!restaurant) {
     return (

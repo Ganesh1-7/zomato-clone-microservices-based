@@ -16,37 +16,41 @@ spec:
         app: gateway
     spec:
       containers:
-      - name: gateway
-        image: ganesh1702/gateway:latest
-        ports:
-        - containerPort: 80
-        volumeMounts:
-        - name: nginx-config
-          mountPath: /etc/nginx/nginx.conf
-          subPath: nginx.conf
-        resources:
-          requests:
-            cpu: 50m
-            memory: 64Mi
-          limits:
-            cpu: 250m
-            memory: 256Mi
-        livenessProbe:
-          httpGet:
-            path: /health
-            port: 80
-          initialDelaySeconds: 30
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /health
-            port: 80
-          initialDelaySeconds: 5
-          periodSeconds: 5
+        - name: gateway
+          image: nginx:1.29.8-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
       volumes:
-      - name: nginx-config
-        configMap:
-          name: gateway-nginx-config
+        - name: nginx-config
+          configMap:
+            name: gateway-nginx-config
+            items:
+              - key: nginx.conf
+                path: nginx.conf
 ---
 apiVersion: v1
 kind: Service
@@ -57,7 +61,10 @@ spec:
   selector:
     app: gateway
   ports:
-  - port: 80
-    targetPort: 80
-    nodePort: 30080
-  type: NodePort
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+  type: ClusterIP
+
+

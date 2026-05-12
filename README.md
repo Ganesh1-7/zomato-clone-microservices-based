@@ -63,8 +63,9 @@ Service Service      Service     Service     Service
   - `gateway.yaml` + `gateway-configmap.yaml`
   - `user-service.yaml`, `restaurant-service.yaml`, `order-service.yaml`, `payment-service.yaml`, `delivery-service.yaml`
   - `ingress-resources.yaml` (frontend ingress at `zomato.local`)
-  - `monitoring-namespace.yaml`, `monitoring-stack.yaml`
-  - `promtail.yaml` (log shipping to Loki)
+  - `monitoring/monitoring-namespace.yaml`, `monitoring/monitoring-stack.yaml`
+  - `monitoring/promtail.yaml` (log shipping to Loki)
+
 - `build-and-push-to-dockerhub.sh` — builds and pushes images to Docker Hub
 
 ---
@@ -122,14 +123,14 @@ The script builds backend service images using each service Dockerfile and pushe
 
 ```bash
 kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/monitoring-namespace.yaml
+kubectl apply -f k8s/monitoring/monitoring-namespace.yaml
 ```
 
 ### 2) Deploy monitoring stack (Prometheus/Grafana/Loki)
 
 ```bash
-kubectl apply -f k8s/monitoring-stack.yaml
-kubectl apply -f k8s/promtail.yaml
+kubectl apply -f k8s/monitoring/all.yaml
+kubectl apply -f k8s/monitoring/promtail.yaml
 ```
 
 ### 3) Deploy backend services

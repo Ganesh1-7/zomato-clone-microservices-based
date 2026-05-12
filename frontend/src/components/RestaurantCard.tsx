@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import type { Restaurant } from "../data/mockData";
+import type { Restaurant } from "../types/restaurant";
+
 import { FaStar, FaClock } from "react-icons/fa";
 
 interface RestaurantCardProps {

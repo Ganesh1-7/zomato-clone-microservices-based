@@ -1,6 +1,8 @@
 
 import axios from 'axios';
-import { restaurants as localRestaurants, type Restaurant } from '../data/mockData';
+import { type Restaurant } from '../types/restaurant';
+
+
 
 const getEnv = (key: string, fallback: string): string => {
   try {
@@ -25,10 +27,14 @@ export interface FetchResult<T> {
 }
 
 const restaurantApi = axios.create({
-  baseURL: API_BASE_URLS.restaurant,
+  // API_BASE_URLS.* is treated as the gateway/service “API root”.
+  // In k8s, VITE_RESTAURANT_SERVICE_URL points to the gateway **/api**.
+  // So endpoint paths MUST NOT include an extra leading `/api`.
+  baseURL: API_BASE_URLS.restaurant.replace(/\/$/, ''),
   timeout: 5000,
   headers: { 'Content-Type': 'application/json' },
 });
+
 
 const orderApi = axios.create({
   baseURL: API_BASE_URLS.order,
@@ -47,7 +53,7 @@ interface GetRestaurantsParams {
 
 export async function fetchRestaurants(params: GetRestaurantsParams = {}): Promise<FetchResult<Restaurant[]>> {
   try {
-    const response = await restaurantApi.get('/api/restaurants', { params });
+    const response = await restaurantApi.get('/restaurants/', { params });
     // API returns { count, restaurants } where restaurants is summary without menu
     // For RestaurantList we need the summary fields; for details we fetch separately
     const apiRestaurants: Restaurant[] = response.data.restaurants.map((r: any) => ({
@@ -57,45 +63,27 @@ export async function fetchRestaurants(params: GetRestaurantsParams = {}): Promi
     return { data: apiRestaurants, source: 'api' };
   } catch (err: any) {
     const reason = err?.response?.status
-      ? `Restaurant service returned ${err.response.status}. Using local data.`
-      : `Restaurant service unreachable (${err?.message || 'Network Error'}). Using local data.`;
+      ? `Restaurant service returned ${err.response.status}.`
+      : `Restaurant service unreachable (${err?.message || 'Network Error'}).`;
 
-    // Apply same filters locally
-    let result = [...localRestaurants];
-    if (params.search) {
-      const q = params.search.toLowerCase();
-      result = result.filter(r => r.name.toLowerCase().includes(q) || r.cuisine.toLowerCase().includes(q));
-    }
-    if (params.cuisine) {
-      const c = params.cuisine.toLowerCase();
-      result = result.filter(r => r.cuisine.toLowerCase().includes(c));
-    }
-    if (params.minRating) {
-      result = result.filter(r => r.rating >= params.minRating!);
-    }
-    if (params.sortBy === 'rating') {
-      result.sort((a, b) => b.rating - a.rating);
-    } else if (params.sortBy === 'delivery') {
-      result.sort((a, b) => a.deliveryTime - b.deliveryTime);
-    } else if (params.sortBy === 'discount') {
-      result.sort((a, b) => (b.discount || 0) - (a.discount || 0));
-    }
-    return { data: result, source: 'local', reason };
+    // Do NOT fall back to mock/local data. Force UI to reflect real service failure.
+    throw new Error(reason);
   }
 }
+
 
 export async function fetchRestaurantById(id: number): Promise<FetchResult<Restaurant | undefined>> {
   try {
-    const response = await restaurantApi.get(`/api/restaurants/${id}`);
+    const response = await restaurantApi.get(`/restaurants/${id}`);
     return { data: response.data as Restaurant, source: 'api' };
   } catch (err: any) {
     const reason = err?.response?.status
-      ? `Restaurant service returned ${err.response.status}. Using local data.`
-      : `Restaurant service unreachable (${err?.message || 'Network Error'}). Using local data.`;
-    const local = localRestaurants.find(r => r.id === id);
-    return { data: local, source: 'local', reason };
+      ? `Restaurant service returned ${err.response.status}.`
+      : `Restaurant service unreachable (${err?.message || 'Network Error'}).`;
+    throw new Error(reason);
   }
 }
+
 
 // ==================== ORDER SERVICE ====================
 
@@ -120,7 +108,7 @@ export interface OrderPayload {
 
 export async function createOrder(payload: OrderPayload): Promise<{ success: true; order: any } | { success: false; reason: string }> {
   try {
-    const response = await orderApi.post('/api/orders', payload);
+    const response = await orderApi.post('/orders', payload);
     return { success: true, order: response.data.order };
   } catch (err: any) {
     const reason = err?.response?.data?.error || err?.message || 'Order service unavailable';

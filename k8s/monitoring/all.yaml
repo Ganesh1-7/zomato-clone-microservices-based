@@ -1,0 +1,20 @@
+# Monitoring resources (namespace + dashboards + log shipping)
+# Apply in order:
+#   kubectl apply -f k8s/monitoring/monitoring-namespace.yaml
+#   kubectl apply -f k8s/monitoring/pvcs.yaml
+#   kubectl apply -f k8s/monitoring/prometheus.yaml
+#   kubectl apply -f k8s/monitoring/grafana.yaml
+#   kubectl apply -f k8s/monitoring/loki.yaml
+#   kubectl apply -f k8s/monitoring/promtail.yaml
+
+---
+# Apply in order:
+#   kubectl apply -f k8s/monitoring/monitoring-namespace.yaml
+#   kubectl apply -f k8s/monitoring/pvcs.yaml
+#   kubectl apply -f k8s/monitoring/prometheus.yaml
+#   kubectl apply -f k8s/monitoring/grafana.yaml
+#   kubectl apply -f k8s/monitoring/loki.yaml
+#   kubectl apply -f k8s/monitoring/promtail.yaml
+
+
+
